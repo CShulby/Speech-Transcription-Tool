@@ -126,7 +126,7 @@ def plot_wav_file(path_wavfile, type_spec="psd"):
     - Displays the spectrogram of the specified audio file in the GUI.
     """
     global AXES1, canvas
-    fig = Figure(figsize=(8, 4))  # Use a larger initial size
+    fig = Figure(figsize=(12, 6))
     sample_rate, samples = wavfile.read(path_wavfile)
     if samples.ndim > 1:
         samples = samples[:, 0]
@@ -146,7 +146,7 @@ def plot_wav_file(path_wavfile, type_spec="psd"):
     canvas = FigureCanvasTkAgg(fig, master=mainframe)
     canvas.draw()
     canvas_widget = canvas.get_tk_widget()
-    canvas_widget.grid(row=2, column=0, columnspan=4, sticky="nsew")
+    canvas_widget.grid(row=2, column=0, columnspan=6, padx=10, pady=10)
 
     # Reconnect the click event handler
     canvas.mpl_connect("button_press_event", on_click)
