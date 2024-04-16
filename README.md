@@ -2,6 +2,9 @@
 
 This application is a Speech Transcription Tool built with Python, using Tkinter for the GUI, matplotlib for plotting spectrograms, and several other libraries to handle audio processing and transcription management.
 
+![Spectrogram](https://github.com/CShulby/Speech-Transcription-Tool/blob/main/Spectrogram.png "Spectrogram")
+
+
 ## Features
 
 - Load WAV files from a directory for transcription.
