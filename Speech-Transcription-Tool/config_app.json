@@ -1,0 +1,10 @@
+{
+    "ButtonsParams": {
+        "Height": 2, 
+        "Width": 20
+    },
+    "TranscriptionFile": {
+        "TranscriptionFile": "TranscriptionFile.csv"
+    }
+}
+
