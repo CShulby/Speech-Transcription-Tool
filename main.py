@@ -43,7 +43,7 @@ def load_annotations():
     """
     global transcriptions_df
     if os.path.exists(CURRENT_CSV_FILENAME):
-        transcriptions_df = pd.read_csv(CURRENT_CSV_FILENAME)
+        transcriptions_df = pd.read_csv(CURRENT_CSV_FILENAME, sep='|')
     else:
         transcriptions_df = pd.DataFrame(columns=["Filename", "Transcription"])
 
@@ -486,39 +486,26 @@ def save_annotations(index_value):
         filepath = FILES_LEFT_TO_ANNOTATE[index_value]
         transcription = ANNOTATION_ENTRY_VAR.get().strip()
 
-        # Create a DataFrame to store the new entry
-        new_data = pd.DataFrame(
-            {"Filename": [filepath], "Transcription": [transcription]}
-        )
-
-        # Check if the CSV file already exists
+        # Check if the CSV file exists and read existing data if it does
         if os.path.exists(CURRENT_CSV_FILENAME):
-            # Read the existing data
-            existing_data = pd.read_csv(CURRENT_CSV_FILENAME)
-
-            # Check if the current file's transcription already exists
+            existing_data = pd.read_csv(CURRENT_CSV_FILENAME, sep='|')
+            # Check if transcription for the current file already exists
             if filepath in existing_data["Filename"].values:
-                messagebox.showinfo(
-                    "Transcription Exists",
-                    "Transcription for this file already exists in the CSV.",
-                )
-                return
-
-            # Append new data to the existing data
-            updated_data = pd.concat([existing_data, new_data], ignore_index=True)
+                # Update the existing transcription
+                existing_data.loc[existing_data["Filename"] == filepath, "Transcription"] = transcription
+                messagebox.showinfo("Update", "Transcription updated successfully.")
+            else:
+                # Append new transcription
+                new_data = pd.DataFrame({"Filename": [filepath], "Transcription": [transcription]})
+                existing_data = pd.concat([existing_data, new_data], ignore_index=True)
         else:
-            # Use new data as the initial data
-            updated_data = new_data
+            # Create new file with transcription
+            existing_data = pd.DataFrame({"Filename": [filepath], "Transcription": [transcription]})
 
-        # Save updated data back to CSV
-        updated_data.to_csv(CURRENT_CSV_FILENAME, index=False)
-        messagebox.showinfo("Success", "Transcription saved successfully.")
-
-        # Update the global DataFrame with the latest data
+        # Save the DataFrame back to CSV using the pipe delimiter
+        existing_data.to_csv(CURRENT_CSV_FILENAME, sep='|', index=False)
         global transcriptions_df
-        transcriptions_df = updated_data.copy()
-
-        # Update ANNOTATION_ENTRY_VAR with the saved transcription
+        transcriptions_df = existing_data.copy()
         ANNOTATION_ENTRY_VAR.set(transcription)
 
     except Exception as e:
