@@ -248,12 +248,13 @@ def next_audio_update_index():
     # Save any changes to the transcription before moving to the next audio file
     save_annotations(CURRENT_INDEX)
 
-    if CURRENT_INDEX < len(FOLDER_WAV_FILES) - 1:
+    if CURRENT_INDEX < len(FILES_LEFT_TO_ANNOTATE) - 1:
         CURRENT_INDEX += 1
         plot_wav_file(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX], "psd")
         update_transcription_display()
         display_path = format_path_display(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX])
-        current_file_label.config(text=display_path)
+        progress_text = f"{CURRENT_INDEX + 1}/{len(FILES_LEFT_TO_ANNOTATE)} {display_path}"
+        current_file_label.config(text=progress_text)
         play_audio(CURRENT_INDEX)
     else:
         messagebox.showinfo("End", "No more files in the folder.")
@@ -302,7 +303,8 @@ def previous_audio_update_index():
         plot_wav_file(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX], "psd")
         update_transcription_display()
         display_path = format_path_display(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX])
-        current_file_label.config(text=display_path)
+        progress_text = f"{CURRENT_INDEX + 1}/{len(FILES_LEFT_TO_ANNOTATE)} {display_path}"
+        current_file_label.config(text=progress_text)
     else:
         messagebox.showinfo("Start", "This is the first file.")
 
@@ -336,9 +338,13 @@ def browse_wav_files():
     else:
         FILES_LEFT_TO_ANNOTATE = FOLDER_WAV_FILES[:]
         display_path = format_path_display(FOLDER_WAV_FILES[0])
+        progress_text = f"1/{len(FILES_LEFT_TO_ANNOTATE)} {display_path}"
+        if 'current_file_label' not in globals() or current_file_label is None:
+            current_file_label = tk.Label(mainframe, text=progress_text)
+            current_file_label.grid(row=1, column=3)
+        else:
+            current_file_label.config(text=progress_text)
         plot_wav_file(FOLDER_WAV_FILES[0], "psd")
-        current_file_label = tk.Label(mainframe, text=display_path)
-        current_file_label.grid(row=1, column=3)
         update_transcription_display()  # Update transcription display for the first file
 
         if os.path.exists(CURRENT_CSV_FILENAME):
