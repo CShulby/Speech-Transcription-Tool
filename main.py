@@ -44,6 +44,7 @@ def load_annotations():
     global transcriptions_df
     if os.path.exists(CURRENT_CSV_FILENAME):
         transcriptions_df = pd.read_csv(CURRENT_CSV_FILENAME, sep='|')
+        transcriptions_df.sort_values('Filename', inplace=True)  # Sort the DataFrame by the Filename column
     else:
         transcriptions_df = pd.DataFrame(columns=["Filename", "Transcription"])
 
@@ -243,12 +244,41 @@ def next_audio_update_index():
     """
     global CURRENT_INDEX
     stop_playback()
+
+    # Save any changes to the transcription before moving to the next audio file
+    save_annotations(CURRENT_INDEX)
+
     if CURRENT_INDEX < len(FOLDER_WAV_FILES) - 1:
         CURRENT_INDEX += 1
         plot_wav_file(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX], "psd")
         update_transcription_display()
+        display_path = format_path_display(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX])
+        current_file_label.config(text=display_path)
+        play_audio(CURRENT_INDEX)
     else:
         messagebox.showinfo("End", "No more files in the folder.")
+
+def format_path_display(filepath):
+    """
+        Formats a file path to display only the last three directories plus the filename.
+
+        This function simplifies file paths for display purposes by extracting and showing
+        only the last three directories and the filename from a given file path. If the path has fewer
+        than three directories, it displays the complete path.
+
+        Parameters:
+        - filepath (str): The full path to a file.
+
+        Returns:
+        - str: A shortened file path containing only the last three directories and the filename.
+    """
+    # Split the filepath into its components
+    parts = filepath.split(os.sep)
+    # Determine the number of parts to include (up to the last three directories plus the filename)
+    num_parts_to_include = min(4, len(parts))
+    # Include only the necessary parts
+    display_path = os.sep.join(parts[-num_parts_to_include:])
+    return display_path
 
 
 # Previous Audio
@@ -266,10 +296,13 @@ def previous_audio_update_index():
     """
     global CURRENT_INDEX
     stop_playback()
+
     if CURRENT_INDEX > 0:
         CURRENT_INDEX -= 1
         plot_wav_file(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX], "psd")
         update_transcription_display()
+        display_path = format_path_display(FILES_LEFT_TO_ANNOTATE[CURRENT_INDEX])
+        current_file_label.config(text=display_path)
     else:
         messagebox.showinfo("Start", "This is the first file.")
 
@@ -288,48 +321,45 @@ def browse_wav_files():
     - Updates the GUI to display the spectrogram of the first audio file and its transcription.
     """
     filename = filedialog.askdirectory()
-    print(filename)
-    global FILES_LEFT_TO_ANNOTATE, FOLDER_WAV_FILES
+    global FILES_LEFT_TO_ANNOTATE, FOLDER_WAV_FILES, current_file_label
     FOLDER_WAV_FILES.clear()  # Clear the list before appending new files
     list_files = list(os.walk(filename))
     for root, dirs, files in list_files:
         for file in files:
-            if file.endswith((".wav", "WAV")):
+            if file.endswith((".wav", ".WAV")):  # Check for WAV files (case-sensitive)
                 FOLDER_WAV_FILES.append(os.path.join(root, file))
-            else:
-                pass
+
+    FOLDER_WAV_FILES.sort()  # Sort the list of files alphabetically
 
     if len(FOLDER_WAV_FILES) == 0:
-        messagebox.showerror("Error", "No Wav Files in Given path")
+        messagebox.showerror("Error", "No WAV files found in the selected path")
     else:
         FILES_LEFT_TO_ANNOTATE = FOLDER_WAV_FILES[:]
+        display_path = format_path_display(FOLDER_WAV_FILES[0])
         plot_wav_file(FOLDER_WAV_FILES[0], "psd")
-        tk.Label(mainframe, text=os.path.basename(FOLDER_WAV_FILES[0])).grid(
-            row=1, column=3
-        )
+        current_file_label = tk.Label(mainframe, text=display_path)
+        current_file_label.grid(row=1, column=3)
         update_transcription_display()  # Update transcription display for the first file
 
         if os.path.exists(CURRENT_CSV_FILENAME):
             annotated_files = pd.read_csv(CURRENT_CSV_FILENAME, error_bad_lines=False)
             annotated_files = annotated_files["Filename"].tolist()
             FILES_LEFT_TO_ANNOTATE = [
-                f
-                for f in FOLDER_WAV_FILES
-                if os.path.basename(f) not in annotated_files
+                f for f in FOLDER_WAV_FILES if os.path.basename(f) not in annotated_files
             ]
             track_annotated = len(FOLDER_WAV_FILES) - len(FILES_LEFT_TO_ANNOTATE)
             messagebox.showinfo(
                 "Files Found:",
-                "No. of audio files found: "
+                "Number of audio files found: "
                 + str(len(FOLDER_WAV_FILES))
                 + "\n"
-                + "Files already Annotated: "
+                + "Files already annotated: "
                 + str(track_annotated),
             )
         else:
             messagebox.showinfo(
                 "Files Found:",
-                "No. of audio files found: " + str(len(FOLDER_WAV_FILES)),
+                "Number of audio files found: " + str(len(FOLDER_WAV_FILES)),
             )
 
 
@@ -493,11 +523,12 @@ def save_annotations(index_value):
             if filepath in existing_data["Filename"].values:
                 # Update the existing transcription
                 existing_data.loc[existing_data["Filename"] == filepath, "Transcription"] = transcription
-                messagebox.showinfo("Update", "Transcription updated successfully.")
             else:
                 # Append new transcription
                 new_data = pd.DataFrame({"Filename": [filepath], "Transcription": [transcription]})
                 existing_data = pd.concat([existing_data, new_data], ignore_index=True)
+            # Sort DataFrame before saving
+            existing_data.sort_values('Filename', inplace=True)
         else:
             # Create new file with transcription
             existing_data = pd.DataFrame({"Filename": [filepath], "Transcription": [transcription]})
