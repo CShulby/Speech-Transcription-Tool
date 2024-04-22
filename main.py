@@ -21,6 +21,9 @@ canvas = None
 start_position = 0
 playback_object = None
 transcriptions_df = pd.DataFrame()
+zoom_level = 1.0
+spectrogram_start = 0
+total_audio_length = 0
 
 
 # Define styling constants
@@ -115,7 +118,7 @@ ANNOTATION_ENTRY_VAR = tk.StringVar(mainframe)
 
 
 # Spectrogram Function
-def plot_wav_file(path_wavfile, type_spec="psd"):
+def plot_wav_file(path_wavfile, type_spec="psd", max_freq=4000):
     """
     Plots the spectrogram of a WAV file in a tkinter frame using matplotlib.
 
@@ -126,19 +129,34 @@ def plot_wav_file(path_wavfile, type_spec="psd"):
     Effects:
     - Displays the spectrogram of the specified audio file in the GUI.
     """
-    global AXES1, canvas
+    global AXES1, canvas, total_audio_length, spectrogram_start, spectrogram_end, zoom_level
     fig = Figure(figsize=(12, 6))
     sample_rate, samples = wavfile.read(path_wavfile)
+    total_audio_length = len(samples) / sample_rate
+    zoom_level = 1.0  # Reset zoom level to 1.0
+    spectrogram_start = 0  # Start from the beginning of the audio
+    spectrogram_end = total_audio_length  # End at the total length of the aud
+
     if samples.ndim > 1:
         samples = samples[:, 0]
+    # Define the NFFT and noverlap for higher resolution
+    NFFT = 4096
+    noverlap = int(NFFT * 0.75)
 
     # Spectrogram plotting
     AXES1 = fig.add_subplot(111)
     AXES1.specgram(
-        samples, Fs=sample_rate, mode=type_spec, cmap=plt.get_cmap("viridis")
+        samples,
+        Fs=sample_rate,
+        NFFT=NFFT,
+        noverlap=noverlap,
+        mode=type_spec,
+        cmap=plt.get_cmap("viridis")
     )
     AXES1.set_ylabel("Frequency [Hz]")
     AXES1.set_xlabel("Time [sec]")
+    AXES1.set_ylim(0, max_freq)  # Adjusted to show full frequency range
+    AXES1.set_xlim(0, spectrogram_end)
 
     # Embedding in Tkinter
     if canvas:
@@ -152,6 +170,48 @@ def plot_wav_file(path_wavfile, type_spec="psd"):
     # Reconnect the click event handler
     canvas.mpl_connect("button_press_event", on_click)
 
+def shift_view(direction):
+    global spectrogram_start, spectrogram_end, AXES1, canvas, zoom_level
+    shift_increment = (spectrogram_end - spectrogram_start) * 0.25  # Adjust this for a larger/smaller shift
+
+    if direction == 'left' and spectrogram_start > 0:
+        spectrogram_start = max(spectrogram_start - shift_increment, 0)
+        spectrogram_end = max(spectrogram_end - shift_increment, (spectrogram_end - spectrogram_start))
+    elif direction == 'right' and spectrogram_end < total_audio_length:
+        spectrogram_end = min(spectrogram_end + shift_increment, total_audio_length)
+        spectrogram_start = min(spectrogram_start + shift_increment, spectrogram_end - (spectrogram_end - spectrogram_start))
+
+    AXES1.set_xlim(spectrogram_start, spectrogram_end)
+    canvas.draw_idle()
+
+
+def update_spectrogram_view():
+    global AXES1, canvas, spectrogram_start, spectrogram_end
+
+    # First, we need to calculate the visible range based on the zoom level.
+    visible_range = spectrogram_end - spectrogram_start
+
+    # The middle point of the current viewport should be the center of the new range
+    middle_of_viewport = spectrogram_start + visible_range / 2
+
+    # With the zoom level, we calculate the new start and end points.
+    new_start = max(middle_of_viewport - (visible_range / 2) / zoom_level, 0)
+    new_end = min(middle_of_viewport + (visible_range / 2) / zoom_level, total_audio_length)
+
+    # Check if we are not going out of bounds
+    if new_end > total_audio_length:
+        new_end = total_audio_length
+        new_start = max(total_audio_length - visible_range / zoom_level, 0)
+    if new_start < 0:
+        new_start = 0
+        new_end = min(visible_range / zoom_level, total_audio_length)
+
+    # Update the global variables
+    spectrogram_start, spectrogram_end = new_start, new_end
+
+    # Now update the axes limits to reflect the new view
+    AXES1.set_xlim(spectrogram_start, spectrogram_end)
+    canvas.draw_idle()
 
 def update_line_position(x_position):
     global current_playback_line, AXES1, canvas, start_position
@@ -192,7 +252,8 @@ def on_click(event):
             update_line_position(clicked_x_position)
 
 
-# Quits Tkinter  Window
+
+# Quits the Window
 def _quit():
     """
     Terminates the application and stops any ongoing audio playback.
@@ -433,21 +494,37 @@ def update_line():
     Effects:
     - Moves the playback position line on the plot to reflect the current playback time.
     """
-    global current_playback_line, AXES1, canvas, playback_start_time, start_position
+    global current_playback_line, AXES1, canvas, playback_start_time, start_position, spectrogram_start, spectrogram_end, zoom_level
 
     if playback_object and playback_object.is_playing():
-        elapsed_time = (
-            time.time() - playback_start_time
-        )  # Calculate elapsed time in seconds
-        current_time = start_position + elapsed_time  # Current position in the audio
+        elapsed_time = time.time() - playback_start_time
+        current_time = start_position + elapsed_time
+
         if current_playback_line:
             current_playback_line.set_xdata([current_time, current_time])
         else:
-            current_playback_line = AXES1.axvline(
-                x=current_time, color="lime", linewidth=2, linestyle="--"
-            )
+            current_playback_line = AXES1.axvline(x=current_time, color="lime", linewidth=2, linestyle="--")
+
         canvas.draw_idle()
-        root.after(50, update_line)  # Continue updating every 50 ms
+
+        middle_of_viewport = (spectrogram_start + spectrogram_end) / 2
+        visible_range = spectrogram_end - spectrogram_start
+
+        if current_time >= middle_of_viewport:
+            shift = current_time - middle_of_viewport
+            new_start = spectrogram_start + shift
+            new_end = spectrogram_end + shift
+
+            if new_end > total_audio_length:
+                new_end = total_audio_length
+                new_start = total_audio_length - visible_range
+
+            spectrogram_start, spectrogram_end = new_start, new_end
+            AXES1.set_xlim(spectrogram_start, spectrogram_end)
+            canvas.draw_idle()
+
+        root.after(50, update_line)
+
     elif current_playback_line:
         current_playback_line.remove()
         current_playback_line = None
@@ -704,7 +781,47 @@ for idx, tag in enumerate(tags):
               command=lambda t=f"[{tag}_End] ": insert_tag(t)).grid(row=starting_row + idx, column=column_for_end_tags, padx=5, pady=5, sticky="ew")
 
 
+def zoom_in():
+    global zoom_level, spectrogram_start, spectrogram_end, AXES1, canvas
+    if zoom_level > 0.1:  # Prevent zooming in too much
+        zoom_level /= 2  # Decrease the window size by half
 
+        # Center the zoom on the middle of the current view
+        mid_point = (spectrogram_end + spectrogram_start) / 2
+        range_view = (spectrogram_end - spectrogram_start) / 2
+
+        spectrogram_start = mid_point - (range_view / 2)
+        spectrogram_end = mid_point + (range_view / 2)
+
+        AXES1.set_xlim(spectrogram_start, spectrogram_end)
+        canvas.draw_idle()
+
+def zoom_out():
+    global zoom_level, spectrogram_start, spectrogram_end, AXES1, canvas, total_audio_length
+    if zoom_level < 1:  # Prevent zooming out beyond the original size
+        zoom_level = min(zoom_level * 2, 1.0)  # Double the zoom level but do not exceed 1.0
+        window_size = total_audio_length * zoom_level  # Calculate the size of the window based on zoom level
+        middle_of_viewport = (spectrogram_start + spectrogram_end) / 2  # Find the center of the current view
+
+        # Calculate the new start and end based on the middle of the viewport
+        spectrogram_start = max(middle_of_viewport - window_size / 2, 0)
+        spectrogram_end = min(middle_of_viewport + window_size / 2, total_audio_length)
+
+        # Update the view
+        AXES1.set_xlim(spectrogram_start, spectrogram_end)
+        canvas.draw_idle()
+
+
+zoom_in_button = tk.Button(mainframe, text="Zoom In", command=zoom_in)
+zoom_out_button = tk.Button(mainframe, text="Zoom Out", command=zoom_out)
+zoom_in_button.grid(row=9, column=0, padx=5, pady=5)
+zoom_out_button.grid(row=9, column=1, padx=5, pady=5)
+
+# Buttons for shifting the view
+shift_left_button = tk.Button(mainframe, text="<< Shift Left", command=lambda: shift_view('left'))
+shift_right_button = tk.Button(mainframe, text="Shift Right >>", command=lambda: shift_view('right'))
+shift_left_button.grid(row=3, column=0, padx=5, pady=5)
+shift_right_button.grid(row=3, column=5, padx=5, pady=5)
 
 # Bind key action for submit
 root.bind("<Return>", save_and_next_audio)
