@@ -308,6 +308,28 @@ def previous_audio_update_index():
     else:
         messagebox.showinfo("Start", "This is the first file.")
 
+# Add tags to transcriptions
+def insert_tag(tag):
+    """
+    Inserts a specified tag into the transcription text at the current cursor position in the entry widget.
+
+    This function is used to dynamically add transcription annotations such as language markers,
+    speaker actions, or hesitation indicators directly into the transcription text. It retrieves the
+    current cursor position within the tkinter Entry widget and inserts the given tag string at that position.
+    This allows users to continue typing or inserting additional tags without losing their place in the text.
+
+    Parameters:
+    - tag (str): The tag string to be inserted into the transcription. This string should include
+      any necessary formatting, such as brackets or punctuation, as it will be inserted as-is.
+
+    Effects:
+    - The tag is inserted directly into the text at the current cursor position, potentially splitting
+      existing text depending on where the cursor is located.
+    """
+    current_position = annotation_text.index(tk.INSERT)
+    annotation_text.insert(current_position, tag)
+
+
 
 # Browse Wav file folder
 def browse_wav_files():
@@ -661,6 +683,16 @@ submit_button.grid(row=8, column=4, padx=5, pady=5, sticky="ew")
 for i in range(9):
     mainframe.grid_rowconfigure(i, weight=1)
 for i in range(6):
+    mainframe.grid_columnconfigure(i, weight=1)
+
+# Define buttons for tagging with start and end variants
+tags = ["Foreign_Language", "Cutoff", "UNK_SPK", "HESITATION"]
+for idx, tag in enumerate(tags):
+    tk.Button(mainframe, text=f"[{tag}_Start]", command=lambda t=f"[{tag}_Start] ": insert_tag(t)).grid(row=3, column=7+idx, padx=5, pady=5, sticky="ew")
+    tk.Button(mainframe, text=f"[{tag}_End]", command=lambda t=f"[{tag}_End] ": insert_tag(t)).grid(row=4, column=7+idx, padx=5, pady=5, sticky="ew")
+
+# Configuring additional column for the tag buttons
+for i in range(7, 7 + len(tags)):
     mainframe.grid_columnconfigure(i, weight=1)
 
 # Bind key action for submit
