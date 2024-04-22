@@ -679,21 +679,32 @@ submit_button = tk.Button(
 )
 submit_button.grid(row=8, column=4, padx=5, pady=5, sticky="ew")
 
-# Configuring row and columns
-for i in range(9):
-    mainframe.grid_rowconfigure(i, weight=1)
-for i in range(6):
-    mainframe.grid_columnconfigure(i, weight=1)
-
-# Define buttons for tagging with start and end variants
+# Tags to be included with Start and End
 tags = ["Foreign_Language", "Cutoff", "UNK_SPK", "HESITATION"]
-for idx, tag in enumerate(tags):
-    tk.Button(mainframe, text=f"[{tag}_Start]", command=lambda t=f"[{tag}_Start] ": insert_tag(t)).grid(row=3, column=7+idx, padx=5, pady=5, sticky="ew")
-    tk.Button(mainframe, text=f"[{tag}_End]", command=lambda t=f"[{tag}_End] ": insert_tag(t)).grid(row=4, column=7+idx, padx=5, pady=5, sticky="ew")
 
-# Configuring additional column for the tag buttons
-for i in range(7, 7 + len(tags)):
-    mainframe.grid_columnconfigure(i, weight=1)
+# Vertical offset to start placing buttons
+row_offset = 2
+
+# Tags to be included with Start and End
+tags = ["Foreign_Language", "Cutoff", "UNK_SPK", "HESITATION"]
+
+# Placement variables
+column_for_start_tags = 7
+column_for_end_tags = 8
+starting_row = 3
+
+# Creating the Start and End tag buttons in two columns
+for idx, tag in enumerate(tags):
+    # Start Tag Button in one column
+    tk.Button(mainframe, text=f"[{tag}_Start]", bg=BUTTON_COLOR, fg="white", font=BUTTON_FONT,
+              command=lambda t=f"[{tag}_Start] ": insert_tag(t)).grid(row=starting_row + idx, column=column_for_start_tags, padx=5, pady=5, sticky="ew")
+
+    # End Tag Button in the next column
+    tk.Button(mainframe, text=f"[{tag}_End]", bg=BUTTON_COLOR, fg="white", font=BUTTON_FONT,
+              command=lambda t=f"[{tag}_End] ": insert_tag(t)).grid(row=starting_row + idx, column=column_for_end_tags, padx=5, pady=5, sticky="ew")
+
+
+
 
 # Bind key action for submit
 root.bind("<Return>", save_and_next_audio)
